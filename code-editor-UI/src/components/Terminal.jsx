@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit'
 import "@xterm/xterm/css/xterm.css";
+import { io } from 'socket.io-client'
+
 
 const darkTheme = {
     background: "#181818",
@@ -47,9 +49,18 @@ const lightTheme = {
     brightWhite: "#ffffff"
 };
 
+const socket = io("http://localhost:3000");
+
 const Terminal_Comp = ({ isDarkMode }) => {
     const termRef = useRef(null);
     const [terminal, setTerminal] = useState(null);
+
+
+
+    useEffect(() => {
+
+    }, [])
+
 
     useEffect(() => {
         const term = new Terminal({
@@ -61,51 +72,26 @@ const Terminal_Comp = ({ isDarkMode }) => {
         term.loadAddon(addon);
         term.open(termRef.current);
         addon.fit();
-        
-        const writePrompt = () => {
-            term.write("\x1b[1;32maditya@aditya-Dell-G15\x1b[0m:\x1b[1;34m~\x1b[0m$ ");
-        };
-        
-        writePrompt();
 
-        let currentCommand = '';
+        socket.on('cmd_output', (output) => {
+            console.log(output);
+            term.write(output);
+        });
+
 
         const disposal = term.onData((data) => {
-            if (data === '\r') {  // enter
-                term.write("\r\n");
-                
-                const cmd = currentCommand.trim();
-                if (cmd === 'ls') {
-                    // Emulate Ubuntu colored ls output
-                    term.write("\x1b[1;34mDocuments\x1b[0m  \x1b[1;34mDownloads\x1b[0m  \x1b[1;34msrc\x1b[0m  \x1b[1;32msetup.sh\x1b[0m  package.json  README.md\r\n");
-                } else if (cmd === 'clear') {
-                    term.clear();
-                } else if (cmd !== '') {
-                    term.write(`bash: ${cmd}: command not found\r\n`);
-                }
-                
-                currentCommand = '';
-                writePrompt();
-            } else if (data === '\x7f') { // backspace
-                if (currentCommand.length > 0) {
-                    currentCommand = currentCommand.slice(0, -1);
-                    term.write('\b \b'); // erase character visually
-                }
-            } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
-                // only add printable characters
-                currentCommand += data;
-                term.write(data);
-            }
+            socket.emit('cmd', data);
         })
-        
+
+
+
         setTerminal(term);
 
         return () => {
             disposal.dispose();
             term.dispose();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, []);
 
     useEffect(() => {
         if (terminal) {
