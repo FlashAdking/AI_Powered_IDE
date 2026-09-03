@@ -83,7 +83,7 @@ socket_io.on('connection', (socket) => {
                 chunkBuffer = '';
             }
         }
-
+        console.log(chunkBuffer);
         socket.emit('cmd_output', data);
     });
 
