@@ -45,17 +45,18 @@ const CodeEditorLayout = () => {
   return (
     <div className={`flex h-screen w-full theme-bg-main theme-text-main font-sans overflow-hidden ${isDragging ? 'select-none' : ''} ${isDarkMode ? 'dark-theme' : ''}`}>
       
-      {/* Main Content Area (Editor + Terminal) */}
+     {/* Main Content Area (Editor + Terminal) */}
       <div className="flex flex-col min-h-0 flex-1">
         
-        {/* Editor Section */}
-        <div style={{ height: `${100 - terminalHeight}%` }} className="min-h-0 overflow-hidden theme-bg-editor">
+        {/* Editor Section (Replaced % with flex-1) */}
+        {/* flex-1 tells it to exactly fill all remaining space automatically */}
+        <div className="flex-1 min-h-0 overflow-hidden theme-bg-editor">
            <EditorArea isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
         </div>
 
         {/* Horizontal Resizer */}
         <div 
-          className="h-1 theme-divider cursor-row-resize transition-colors z-10"
+          className="h-1 theme-divider cursor-row-resize transition-colors z-10 shrink-0"
           onMouseDown={() => {
             isDraggingTerminal.current = true;
             setIsDragging(true);
@@ -63,8 +64,12 @@ const CodeEditorLayout = () => {
           }}
         />
 
-        {/* Terminal Section */}
-        <div style={{ height: `${terminalHeight}%` }} className="min-h-0 theme-bg-terminal overflow-hidden border-t theme-border">
+        {/* Terminal Section (Only this one uses the percentage) */}
+        {/* Added shrink-0 to prevent flexbox from squishing it */}
+        <div 
+          style={{ height: `${terminalHeight}%` }} 
+          className="shrink-0 min-h-0 theme-bg-terminal overflow-hidden border-t theme-border relative"
+        >
           <Terminal isDarkMode={isDarkMode} />
         </div>
         

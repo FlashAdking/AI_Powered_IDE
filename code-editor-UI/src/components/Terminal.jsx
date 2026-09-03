@@ -4,7 +4,6 @@ import { FitAddon } from '@xterm/addon-fit'
 import "@xterm/xterm/css/xterm.css";
 import { io } from 'socket.io-client'
 
-
 const darkTheme = {
     background: "#181818",
     foreground: "#c9d1d9",
@@ -55,43 +54,75 @@ const Terminal_Comp = ({ isDarkMode }) => {
     const termRef = useRef(null);
     const [terminal, setTerminal] = useState(null);
 
-
-
     useEffect(() => {
+        if (!termRef.current || !socket) return;
 
-    }, [])
-
-
-    useEffect(() => {
         const term = new Terminal({
             theme: isDarkMode ? darkTheme : lightTheme,
             cursorBlink: true
         });
+
         const addon = new FitAddon();
 
         term.loadAddon(addon);
         term.open(termRef.current);
-        addon.fit();
 
-        socket.on('cmd_output', (output) => {
-            console.log(output);
-            term.write(output);
+        // Force an initial fit slightly after mount so CSS is fully calculated
+        setTimeout(() => {
+            addon.fit();
+            socket.emit('resize', { cols: term.cols, rows: term.rows });
+        }, 50);
+
+        // --- NEW: ResizeObserver replaces window.addEventListener ---
+        let resizeTimeout;
+        const resizeObserver = new ResizeObserver(() => {
+            try {
+                // 1. Instantly resize the frontend
+                addon.fit();
+
+                // 2. Debounce the backend call to prevent lag while dragging
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    if (term.cols && term.rows) {
+                        socket.emit('resize', {
+                            cols: term.cols,
+                            rows: term.rows
+                        });
+                    }
+                }, 100);
+            } catch (e) {
+                console.warn("Resize failed", e);
+            }
         });
 
+        // Start observing the terminal wrapper
+        resizeObserver.observe(termRef.current);
+        // ------------------------------------------------------------
 
-        const disposal = term.onData((data) => {
+        const handleOutput = (output) => {
+            term.write(output);
+        }
+
+        // Backend detected a clear sequence — wipe viewport + scrollback
+        const handleClear = () => term.reset();
+
+        socket.on('cmd_output', handleOutput);
+        socket.on('clear_terminal', handleClear);
+
+        const dataListener = term.onData((data) => {
             socket.emit('cmd', data);
         })
-
-
 
         setTerminal(term);
 
         return () => {
-            disposal.dispose();
+            resizeObserver.disconnect();
+            socket.off('cmd_output', handleOutput);
+            socket.off('clear_terminal', handleClear);
+            dataListener.dispose();
             term.dispose();
         }
-    }, []);
+    }, [socket]); // Note: you might want to remove socket from deps if it's declared outside the component
 
     useEffect(() => {
         if (terminal) {
@@ -100,8 +131,15 @@ const Terminal_Comp = ({ isDarkMode }) => {
     }, [isDarkMode, terminal]);
 
     return (
-        <div ref={termRef} className="w-full h-full p-2"></div>
-    )
+        <div className="relative w-full h-full overflow-hidden">
+            {/* inset-2 gives padding — outer p-2 would be ignored by absolute positioning */}
+            <div
+                ref={termRef}
+                className="absolute inset-2"
+                style={{ overflow: 'hidden' }}
+            ></div>
+        </div>
+    );
 }
 
 export default Terminal_Comp;
